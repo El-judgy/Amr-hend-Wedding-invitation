@@ -58,18 +58,19 @@
 
     /* PETALS */
     .petal-container {
-      /* Use absolute instead of fixed on iOS to avoid fixed-position Safari bugs */
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none;
+      pointer-events: none !important;
       z-index: 0;
       overflow: hidden;
-      /* Promote to own layer for iOS GPU compositing */
       -webkit-transform: translateZ(0);
       transform: translateZ(0);
+    }
+    .petal-container * {
+      pointer-events: none !important;
     }
 
     .petal {
@@ -302,8 +303,8 @@
     .scroll-hint {
       position: absolute;
       bottom: 28px;
-      bottom: 5px;
-      left: 43%;
+      bottom: max(28px, env(safe-area-inset-bottom, 28px));
+      left: 50%;
       -webkit-transform: translateX(-50%);
       transform: translateX(-50%);
       display: -webkit-box;
@@ -963,39 +964,37 @@
       width: 160px;
     }
 
-    .music-btn{
-position:fixed;
-bottom:25px;
-right:25px;
-width:65px;
-height:65px;
-border-radius:50%;
-border:none;
-cursor:pointer;
-
-background:linear-gradient(145deg,#6b0f1a,#8e1b2f);
-
-color:#D4AF37;
-font-size:26px;
-
-display:flex;
-align-items:center;
-justify-content:center;
-
-box-shadow:
-0 0 15px rgba(212,175,55,0.7),
-0 6px 18px rgba(0,0,0,0.35);
-
-transition:all .3s ease;
-z-index:9999;
-}
-
-.music-btn:hover{
-transform:scale(1.12);
-box-shadow:
-0 0 30px rgba(212,175,55,1),
-0 8px 25px rgba(0,0,0,0.4);
-}
+    .music-btn {
+      position: fixed;
+      bottom: max(30px, env(safe-area-inset-bottom, 30px));
+      right: 25px;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: 2px solid rgba(212,175,55,0.6);
+      cursor: pointer;
+      background: linear-gradient(145deg, #6b0f1a, #8e1b2f);
+      color: #D4AF37;
+      font-size: 28px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 18px rgba(212,175,55,0.8), 0 6px 20px rgba(0,0,0,0.4);
+      transition: transform .2s ease, box-shadow .2s ease;
+      z-index: 2147483647;
+      pointer-events: auto !important;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .music-btn:active {
+      transform: scale(0.92);
+    }
   </style>
 </head>
 
@@ -1162,7 +1161,7 @@ box-shadow:
     </div>
 
     <p class="hero-date">SUNDAY · 5TH APRIL 2026</p>
-    <p class="hero-sub">The Wedding Celebration &nbsp;·&nbsp; Doors Open at 6:30 PM</p>
+    <p class="hero-sub">The Wedding Celebration &nbsp;·&nbsp; Doors Open at 8:00 PM</p>
 
     <div class="scroll-hint">
       <span>Scroll</span>
@@ -1395,7 +1394,7 @@ box-shadow:
     <source src="https://archive.org/download/fantasymphony-one-concert-to-rule-them-all/01.%20Harry%27s%20Wondrous%20World%20%28From%20Harry%20Potter%29.mp3" type="audio/mpeg">
   </audio>
 
-  <button class="music-btn" id="musicToggle" title="Click to unmute music">🔇</button>
+  <button class="music-btn" id="musicToggle" title="Tap to unmute music">🔇</button>
 
   <script>
     // ─── iOS VIEWPORT HEIGHT FIX ───
@@ -1454,40 +1453,50 @@ box-shadow:
       });
     }
 
-    // ─── HARRY'S WONDROUS WORLD – AUTOPLAY ───
+    // ─── HARRY'S WONDROUS WORLD – AUTOPLAY + MUTE TOGGLE ───
     var audio = document.getElementById('bgMusic');
     var musicBtn = document.getElementById('musicToggle');
-    var playing = false;
 
-    function playMusic() {
-      audio.volume = 0.7;
-      audio.play().then(function () {
-        playing = true;
-        musicBtn.innerHTML = '🔊';
-      }).catch(function (err) {
-        console.log('Play failed:', err);
-      });
+    // Step 1: Start muted immediately (browsers always allow muted autoplay)
+    audio.muted = true;
+    audio.volume = 0.75;
+    audio.play().catch(function () {});
+
+    // Step 2: Unmute as soon as the user touches/interacts with the page
+    function unmuteOnce() {
+      audio.muted = false;
+      audio.play().catch(function () {});
+      musicBtn.textContent = '🔊';
+      document.removeEventListener('touchstart', unmuteOnce);
+      document.removeEventListener('click', unmuteOnce);
     }
+    document.addEventListener('touchstart', unmuteOnce, { passive: true });
+    document.addEventListener('click', unmuteOnce);
 
-    function pauseMusic() {
-      audio.pause();
-      playing = false;
-      musicBtn.innerHTML = '🔇';
-    }
-
-    // Button click always toggles
-    musicBtn.addEventListener('click', function () {
-      if (playing) {
-        pauseMusic();
+    // Step 3: Button toggles mute/unmute (never stops the music)
+    function toggleMute(e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (audio.muted) {
+        audio.muted = false;
+        musicBtn.textContent = '🔊';
       } else {
-        playMusic();
+        audio.muted = true;
+        musicBtn.textContent = '🔇';
       }
-    });
+    }
 
-    // Also start on first click anywhere on the page
-    document.addEventListener('click', function firstClick() {
-      if (!playing) playMusic();
-      document.removeEventListener('click', firstClick);
+    musicBtn.addEventListener('touchstart', function (e) {
+      // Remove the global unmute listener so button tap doesn't double-fire
+      document.removeEventListener('touchstart', unmuteOnce);
+      document.removeEventListener('click', unmuteOnce);
+      toggleMute(e);
+    }, { passive: false });
+
+    musicBtn.addEventListener('click', function (e) {
+      document.removeEventListener('touchstart', unmuteOnce);
+      document.removeEventListener('click', unmuteOnce);
+      toggleMute(e);
     });
   </script>
 </body>
